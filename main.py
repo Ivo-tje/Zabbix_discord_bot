@@ -4,8 +4,20 @@ from discord.ext import commands
 import asyncio
 import aiohttp
 import json
+import logging
 import re
 from zabbix_utils import AsyncZabbixAPI
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s:%(name)s:%(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Suppress discord library debug logging
+discord_logger = logging.getLogger('discord')
+discord_logger.setLevel(logging.INFO)
 
 with open('config.json') as config_file:
     config = json.load(config_file)
@@ -43,12 +55,14 @@ def sanitize_name(name):
 async def get_or_create_host(zapi, guild_name, channel_name, hostgroup_id):
     sanitized_guild_name = sanitize_name(guild_name)
     host_name = f"{sanitized_guild_name}-{channel_name}"
+    name = f"{guild_name} - {channel_name}"
     hosts = await zapi.host.get({'filter': {'host': host_name}})
     if hosts:
         return hosts[0]['hostid']
     else:
         host = await zapi.host.create({
             'host': host_name,
+            'name': name,
             'interfaces': [{
                 'type': 1,
                 'main': 1,
@@ -76,7 +90,7 @@ async def get_or_create_item(zapi, host_id, item_name, key):
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}')
+    logging.info(f'Logged in as {bot.user}')
     bot.zapi = await create_zabbix_session()
     bot.hostgroup_id = await get_or_create_hostgroup(bot.zapi, 'Discord channels')
     bot.data = {}  # Nested dictionary to store host, item, and value data
@@ -85,14 +99,14 @@ async def on_ready():
             # Controleer of de host al bestaat, zo niet, maak deze aan
             host_id = await get_or_create_host(bot.zapi, guild.name, channel.name, bot.hostgroup_id)
             bot.data[channel.id] = {'host_id': host_id, 'items': {}}
-            print(f'Host created or found for channel: {sanitize_name(guild.name)}-{channel.name}')
+            logging.info(f'Host created or found for channel: {sanitize_name(guild.name)}-{channel.name}')
 
 @bot.event
 async def on_guild_channel_create(channel):
     if isinstance(channel, discord.TextChannel):
         host_id = await get_or_create_host(bot.zapi, channel.guild.name, channel.name, bot.hostgroup_id)
         bot.data[channel.id] = {'host_id': host_id, 'items': {}}
-        print(f'Host created or found for new channel: {sanitize_name(channel.guild.name)}-{channel.name}')
+        logging.info(f'Host created or found for new channel: {sanitize_name(channel.guild.name)}-{channel.name}')
 
 @bot.event
 async def on_message(message):
@@ -111,9 +125,9 @@ async def on_message(message):
         if item_key not in items:
             item_id = await get_or_create_item(bot.zapi, host_id, f'Message count for {message.author.name}', item_key)
             items[item_key] = {'item_id': item_id, 'count': 0}
-            print(f'Item created or found for user: {message.author.name}')
+            logging.info(f'Item created or found for user: {message.author.name}')
 
-            # Check if there is existing history for the item
+        # Check if there is existing history for the item
             last_count = await bot.zapi.history.get({
                 'itemids': item_id,
                 'sortfield': 'clock',
@@ -124,11 +138,12 @@ async def on_message(message):
 
         # Verhoog de teller voor het aantal berichten
         items[item_key]['count'] += 1
+
         await bot.zapi.history.push({
             'itemid': items[item_key]['item_id'],
             'clock': int(message.created_at.timestamp()),
             'value': items[item_key]['count']
         })
-        print(f'Count updated for user: {message.author.name}')
+        logging.info(f'Count updated for user: {message.author.name}')
 
 bot.run(DISCORD_TOKEN)
