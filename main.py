@@ -121,11 +121,14 @@ async def on_message(message):
         items = host_data['items']
 
         # Voeg een item toe voor elke gebruiker in het kanaal
-        item_key = f'message.count[{message.author.id}]'
-        if item_key not in items:
-            item_id = await get_or_create_item(bot.zapi, host_id, f'Message count for {message.author.name}', item_key)
-            items[item_key] = {'item_id': item_id, 'count': 0}
-            logging.info(f'Item created or found for user: {message.author.name}')
+        count_item_key = f'message.count[{message.author.id}]'
+        length_item_key = f'message.length[{message.author.id}]'
+
+        # Check if count item exist or create and check history
+        if count_item_key not in items:
+            item_id = await get_or_create_item(bot.zapi, host_id, f'Message count for {message.author.name}', count_item_key)
+            items[count_item_key] = {'item_id': item_id, 'count': 0}
+            logging.info(f'Count item created or found for user: {message.author.name}')
 
         # Check if there is existing history for the item
             last_count = await bot.zapi.history.get({
@@ -134,16 +137,40 @@ async def on_message(message):
                 'sortorder': 'DESC',
                 'limit': 1
             })
-            items[item_key]['count'] = int(last_count[0]['value']) if last_count else 0
+            items[count_item_key]['count'] = int(last_count[0]['value']) if last_count else 0
 
-        # Verhoog de teller voor het aantal berichten
-        items[item_key]['count'] += 1
+        items[count_item_key]['count'] += 1
 
         await bot.zapi.history.push({
-            'itemid': items[item_key]['item_id'],
+            'itemid': items[count_item_key]['item_id'],
             'clock': int(message.created_at.timestamp()),
-            'value': items[item_key]['count']
+            'value': items[count_item_key]['count']
         })
         logging.info(f'Count updated for user: {message.author.name}')
+
+        # Check if length item exist or create and check history
+        if length_item_key not in items:
+            item_id = await get_or_create_item(bot.zapi, host_id, f'Message length for {message.author.name}', length_item_key)
+            items[length_item_key] = {'item_id': item_id, 'length': 0}
+            logging.info(f'Length item created or found for user: {message.author.name}')
+
+        # Check if there is existing history for the item
+            last_length = await bot.zapi.history.get({
+                'itemids': item_id,
+                'sortfield': 'clock',
+                'sortorder': 'DESC',
+                'limit': 1
+            })
+            items[length_item_key]['length'] = int(last_length[0]['value']) if last_length else 0
+
+        # Verhoog de teller voor het aantal berichten
+        items[length_item_key]['length'] += len(message.content)
+
+        await bot.zapi.history.push({
+            'itemid': items[length_item_key]['item_id'],
+            'clock': int(message.created_at.timestamp()),
+            'value': items[length_item_key]['length']
+        })
+        logging.info(f'Length updated for user: {message.author.name}')
 
 bot.run(DISCORD_TOKEN)
