@@ -1,5 +1,4 @@
 discord.py
 asyncio
 aiohttp
-json
 zabbix_utils

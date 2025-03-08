@@ -4,6 +4,7 @@ from discord.ext import commands
 import asyncio
 import aiohttp
 import json
+import re
 from zabbix_utils import AsyncZabbixAPI
 
 with open('config.json') as config_file:
@@ -36,13 +37,18 @@ async def get_or_create_hostgroup(zapi, group_name):
         group = await zapi.hostgroup.create({'name': group_name})
         return group['groupids'][0]
 
-async def get_or_create_host(zapi, channel_name, hostgroup_id):
-    hosts = await zapi.host.get({'filter': {'host': channel_name}})
+def sanitize_name(name):
+    return re.sub(r'\W+', '', name)
+
+async def get_or_create_host(zapi, guild_name, channel_name, hostgroup_id):
+    sanitized_guild_name = sanitize_name(guild_name)
+    host_name = f"{sanitized_guild_name}-{channel_name}"
+    hosts = await zapi.host.get({'filter': {'host': host_name}})
     if hosts:
         return hosts[0]['hostid']
     else:
         host = await zapi.host.create({
-            'host': channel_name,
+            'host': host_name,
             'interfaces': [{
                 'type': 1,
                 'main': 1,
@@ -77,16 +83,16 @@ async def on_ready():
     for guild in bot.guilds:
         for channel in guild.text_channels:
             # Controleer of de host al bestaat, zo niet, maak deze aan
-            host_id = await get_or_create_host(bot.zapi, channel.name, bot.hostgroup_id)
+            host_id = await get_or_create_host(bot.zapi, guild.name, channel.name, bot.hostgroup_id)
             bot.data[channel.id] = {'host_id': host_id, 'items': {}}
-            print(f'Host created or found for channel: {channel.name}')
+            print(f'Host created or found for channel: {sanitize_name(guild.name)}-{channel.name}')
 
 @bot.event
 async def on_guild_channel_create(channel):
     if isinstance(channel, discord.TextChannel):
-        host_id = await get_or_create_host(bot.zapi, channel.name, bot.hostgroup_id)
+        host_id = await get_or_create_host(bot.zapi, channel.guild.name, channel.name, bot.hostgroup_id)
         bot.data[channel.id] = {'host_id': host_id, 'items': {}}
-        print(f'Host created or found for new channel: {channel.name}')
+        print(f'Host created or found for new channel: {sanitize_name(channel.guild.name)}-{channel.name}')
 
 @bot.event
 async def on_message(message):
