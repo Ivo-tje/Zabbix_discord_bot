@@ -1,0 +1,5 @@
+{
+    "discord_token": "YOUR-TOKEN-HERE",
+    "zabbix_host": "https://x.ip.x.ip",
+    "api_token": "YOUR-TOKEN-HERE"
+}
