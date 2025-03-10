@@ -75,7 +75,7 @@ async def get_or_create_host(zapi, guild_name, channel_name, hostgroup_id):
         })
         return host['hostids'][0]
 
-async def get_or_create_item(zapi, host_id, item_name, key):
+async def get_or_create_item(zapi, host_id, item_name, key, units = None):
     items = await zapi.item.get(filter={'hostid': host_id, 'name': item_name})
     if items:
         return items[0]['itemid']
@@ -83,6 +83,7 @@ async def get_or_create_item(zapi, host_id, item_name, key):
         'name': item_name,
         'key_': key,
         'hostid': host_id,
+        'units': units,
         'type': 2,  # Zabbix trapper item
         'value_type': 3  # Numeric unsigned
     })
@@ -126,7 +127,7 @@ async def on_message(message):
 
         # Check if count item exist or create and check history
         if count_item_key not in items:
-            item_id = await get_or_create_item(bot.zapi, host_id, f'Message count for {message.author.name}', count_item_key)
+            item_id = await get_or_create_item(bot.zapi, host_id, f'Message count for {message.author.name}', count_item_key, f'messages')
             items[count_item_key] = {'item_id': item_id, 'count': 0}
             logging.info(f'Count item created or found for user: {message.author.name}')
 
@@ -150,7 +151,7 @@ async def on_message(message):
 
         # Check if length item exist or create and check history
         if length_item_key not in items:
-            item_id = await get_or_create_item(bot.zapi, host_id, f'Message length for {message.author.name}', length_item_key)
+            item_id = await get_or_create_item(bot.zapi, host_id, f'Message length for {message.author.name}', length_item_key, f'characters')
             items[length_item_key] = {'item_id': item_id, 'length': 0}
             logging.info(f'Length item created or found for user: {message.author.name}')
 
