@@ -21,4 +21,4 @@ The second:
  - Item Patern: Message length *
  - Advanced configuration > Primary label > Text: {{ITEM.NAME}.regrepl("Message length for", "")}
 
-[image/Dashboard.png]
+![Dashboard example](image/Dashboard.png)
