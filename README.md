@@ -31,6 +31,8 @@ The first:
  - Hosts: widget -> Guild - Channel
  - Item Patern: Message count *
  - Advanced configuration > Primary label > Text: {{ITEM.NAME}.regrepl("Message count for", "")}
+ - Advanced configuration > Secondary label > Decimal places: 0
+
 
 The second:
  - Name: Message length
@@ -38,6 +40,7 @@ The second:
  - Hosts: widget -> Guild - Channel
  - Item Patern: Message length *
  - Advanced configuration > Primary label > Text: {{ITEM.NAME}.regrepl("Message length for", "")}
+ - Advanced configuration > Secondary label > Decimal places: 0
 
 ![Dashboard example](image/Dashboard.png)
 
