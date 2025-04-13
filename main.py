@@ -34,6 +34,7 @@ ZABBIX_AUTH = {
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True  # Make sure to enable guilds intent
+intents.members = True
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 async def create_zabbix_session():
@@ -75,7 +76,7 @@ async def get_or_create_host(zapi, guild_name, channel_name, hostgroup_id):
         })
         return host['hostids'][0]
 
-async def get_or_create_item(zapi, host_id, item_name, key, units = None):
+async def get_or_create_item(zapi, host_id, item_name, key, units=None):
     items = await zapi.item.get(filter={'hostid': host_id, 'name': item_name})
     if items:
         return items[0]['itemid']
@@ -87,7 +88,14 @@ async def get_or_create_item(zapi, host_id, item_name, key, units = None):
         'type': 2,  # Zabbix trapper item
         'value_type': 3  # Numeric unsigned
     })
+    logging.info(f'Created item {item_name}')
     return item['itemids'][0]
+
+async def create_items_for_user(zapi, host_id, user):
+    count_item_key = f'message.count[{user.id}]'
+    length_item_key = f'message.length[{user.id}]'
+    await get_or_create_item(zapi, host_id, f'Message count for {user.name}', count_item_key, 'messages')
+    await get_or_create_item(zapi, host_id, f'Message length for {user.name}', length_item_key, 'characters')
 
 @bot.event
 async def on_ready():
@@ -100,7 +108,10 @@ async def on_ready():
             # Controleer of de host al bestaat, zo niet, maak deze aan
             host_id = await get_or_create_host(bot.zapi, guild.name, channel.name, bot.hostgroup_id)
             bot.data[channel.id] = {'host_id': host_id, 'items': {}}
-            logging.info(f'Host created or found for channel: {sanitize_name(guild.name)}-{channel.name}')
+            for member in channel.members:
+                if not member.bot:
+                    await create_items_for_user(bot.zapi, host_id, member)
+            logging.info(f'Host and items created or found for channel: {sanitize_name(guild.name)}-{channel.name}')
 
 @bot.event
 async def on_guild_channel_create(channel):
@@ -108,6 +119,15 @@ async def on_guild_channel_create(channel):
         host_id = await get_or_create_host(bot.zapi, channel.guild.name, channel.name, bot.hostgroup_id)
         bot.data[channel.id] = {'host_id': host_id, 'items': {}}
         logging.info(f'Host created or found for new channel: {sanitize_name(channel.guild.name)}-{channel.name}')
+
+@bot.event
+async def on_member_join(member):
+    for channel in member.guild.text_channels:
+        if channel.permissions_for(member).read_messages:
+            host_data = bot.data.get(channel.id)
+            if host_data:
+                await create_items_for_user(bot.zapi, host_data['host_id'], member)
+                logging.info(f'Items created for new member: {member.name} in channel: {channel.name}')
 
 @bot.event
 async def on_message(message):
